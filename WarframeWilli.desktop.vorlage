@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=WarframeWilli
+Comment=Schmiede-Überblick für den Mastery Rank
+Exec=@PFAD@/start.sh
+Path=@PFAD@
+Icon=@PFAD@/web/favicon.svg
+Terminal=true
+Categories=Game;Utility;

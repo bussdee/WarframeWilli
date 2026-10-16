@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>WarframeWilli</title>
+  <meta name="description" content="Schmiede-Überblick für den Mastery Rank: was ist gebaut, was fehlt, was bringt am meisten.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="kopf">
+    <div class="marke">Warframe<span>Willi</span></div>
+    <nav class="tabs" role="tablist" aria-label="Bereiche" id="tabs"></nav>
+    <div class="kopf-rechts">
+      <span class="speicher" id="speicher" role="status"></span>
+      <button class="knopf klein" id="themeknopf" title="Hell oder dunkel" aria-label="Farbschema wechseln">Hell/Dunkel</button>
+    </div>
+  </header>
+  <main id="ansicht" tabindex="-1"><p class="leer">Lade Daten ...</p></main>
+  <div class="abdunkeln" id="abdunkeln" hidden></div>
+  <aside class="schublade" id="schublade" hidden aria-label="Item-Details"></aside>
+  <div id="toast" aria-live="polite"></div>
+  <script src="rechnen.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

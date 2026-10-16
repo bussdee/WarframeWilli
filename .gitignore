@@ -1,0 +1,13 @@
+# persönliche Daten und erzeugte Dateien, gehören nie ins Repository
+daten/zustand.json
+daten/sicherungen/
+daten/profil_roh.json
+daten/api_zugriffe.json
+daten/bilder/
+daten/items.json
+daten/*.tmp
+WarframeWilli.desktop
+
+__pycache__/
+*.pyc
+.claude/
