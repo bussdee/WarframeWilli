@@ -47,6 +47,19 @@ Beenden mit Strg+C. Läuft schon eine Instanz, öffnet `start.sh` nur den Browse
    der Server ordnet XPInfo den Items zu, der Browser übernimmt das (nur hochstufen, nie herabstufen).
    Der Normalfall ist das Abhaken von Hand in der Schmiede.
 
+## Farm-Liste und Aufwand
+
+`web/rechnen.js` rechnet den Farm-Plan (`farm`, `aufwand`, `orteGruppieren`):
+
+* Je fehlendem Teil (Zustand `0`) wird die beste Quelle gewählt, das ist die mit den wenigsten erwarteten Versuchen
+  (`100 / Chance`, bei Relikten plus 3, Tresor-Relikte zählen nicht, Conclave-Orte zählen dreifach, fehlende Chance wird mit 5 % geschätzt).
+* Teile am selben Ort werden zusammengefasst: erwartete Versuche, bis alle gefallen sind (Maximum geometrischer Verteilungen
+  per Einschluss und Ausschluss, `erwartetMax`).
+* Teile ohne bekannte Quelle zählen 25 Versuche, ein unbekannter Haupt-Blueprint 20.
+* Aufwandspunkte = Versuche / 6 + Credits / 50.000. Stufen: unter 3 leicht, unter 8 mittel, sonst aufwendig. Nur im Tresor: `tresor`.
+* Die Reihenfolge ist `Mastery / (1 + Aufwandspunkte)`. Vorhandene Teile senken den Aufwand, deshalb steigen angefangene Items auf.
+* Items ohne Rezept (Syndikat, Baro, Lich, Quest, Inkubator) stehen getrennt unter "Sonderbezug".
+
 ## Status je Item
 
 `0` offen, `1` im Bau, `2` gebaut, `3` Rang 30. Dazu: `w` Wunschliste, `x` zurückgestellt,

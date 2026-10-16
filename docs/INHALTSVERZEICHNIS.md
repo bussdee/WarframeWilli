@@ -116,7 +116,12 @@ _WarframeWilli: reine Rechenfunktionen ohne Oberflaeche (auch unter Node testbar
 * `zeitKette()`
 * `bedarf()`
 * `lauf()`
-* `aufwand()`: Aufwand-Einschaetzung, Stufe: leicht, mittel, aufwendig, tresor (nur ueber Handel).
+* `erwartetMax()`: Erwartete Versuche, bis ALLE Teile gefallen sind (unabhaengige Chancen je Versuch, Werte 0 bis 1).
+* `besteQuelle()`: Beste Quelle fuer ein Teil: wenigste erwartete Versuche, Tresor-Relikte zaehlen nicht.
+* `farm()`
+* `stufeVon()`
+* `aufwand()`: Aufwand-Einschaetzung, Stufe: leicht, mittel, aufwendig, tresor (nur ueber Varzia, Handel oder Events).
+* `orteGruppieren()`: Fasst fehlende Teile mehrerer Items nach Farm-Ort zusammen. eintraege: [{item, farm}].
 * `statistik()`: Zaehlt Status und Mastery je Kategorie. z = Zustand, items = db.items.
 * `mrPlan()`: Plan fuer den naechsten Mastery Rank.
 

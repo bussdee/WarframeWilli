@@ -298,6 +298,27 @@ summary { cursor: pointer; color: var(--akzent2); font-weight: 600; }
   .zeile .aktionen { grid-column: 1 / -1; justify-content: space-between; flex-wrap: wrap; }
   .zeile .bild { width: 44px; height: 44px; }
 }
+
+/* Farm-Liste */
+.farmliste { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(520px, 100%), 1fr)); align-items: start; }
+.farmkarte { background: var(--panel); border: 1px solid var(--rand); border-radius: var(--radius); padding: 12px 14px; }
+.farmkarte.erledigt { opacity: .55; }
+.farmkopf { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 12px; align-items: center; }
+.farmkopf .bild { width: 52px; height: 52px; border-radius: 8px; background: var(--bg2); display: grid; place-items: center; color: var(--text2); font-weight: 800; overflow: hidden; }
+.farmname { cursor: pointer; font-size: 1.05rem; }
+.farmname:hover { color: var(--akzent); }
+.farminfo .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 3px; }
+.farmwert { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.farmteile { margin-top: 10px; border-top: 1px solid var(--rand); }
+.farmteil { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding: 8px 0; border-bottom: 1px dashed var(--rand); }
+.farmteil > div:first-child { min-width: 0; flex: 1 1 auto; }
+.farmteil.fertig { opacity: .6; }
+.farmfuss { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+@media (max-width: 760px) {
+  .farmkopf { grid-template-columns: 44px minmax(0, 1fr); }
+  .farmwert { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
+  .farmteil { flex-direction: column; align-items: flex-start; }
+}
 @media print {
   .kopf, .werkzeug, .abdunkeln, .schublade, .knopf, #toast { display: none !important; }
   body { background: #fff; color: #000; }

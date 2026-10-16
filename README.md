@@ -14,7 +14,10 @@ Es ist ein inoffizielles Fan-Werkzeug und steht in keiner Verbindung zu Digital 
 * **Mastery-Plan:** trage deinen Mastery Rank ein und sieh, wie viele Mastery-Punkte bis zum nächsten (oder einem Wunsch-) Rang fehlen
   und wie viele Warframes oder Waffen das sind.
 * **Sofort-Gewinne:** Items, die schon gebaut, aber noch nicht auf Rang 30 sind. Das ist der schnellste Weg zu Mastery.
-* **Empfehlung:** offene Items sortiert nach Mastery pro Aufwand (Credits, zu droppende Teile, Relikte, Tresor-Status).
+* **Farm-Liste:** zeigt, welche Items du als Nächstes farmen solltest. Der Aufwand kommt aus den Drop-Chancen der **fehlenden** Teile
+  (erwartete Versuche, Relikte, Tresor-Status), vorhandene Teile zählen nicht mehr. Teile hakst du direkt in der Karte ab.
+  Zweite Ansicht nach Farm-Ort: Wo bekommst du Teile für mehrere Items zugleich?
+* **Sofort baubar:** Items, bei denen kein Teil mehr fehlt, nur Rohstoffe und Credits.
 * **Nichts doppelt bauen:** Gebautes erscheint nicht mehr in Empfehlung und Einkaufsliste.
 * **Bauplan mit Unter-Rezepten:** Teile, Rohstoffe, Credits, Bauzeit, Drop-Orte und Relikte (mit Tresor-Anzeige), pro Teil abhakbar
   ("fehlt", "Bauplan da", "fertig").

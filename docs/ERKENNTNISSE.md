@@ -108,3 +108,14 @@ Beim Abhaken blieben die Zeilen absichtlich stehen, beim nächsten Neuaufbau der
 **Regel:** Der Standardfilter der Schmiede ist "Alle anzeigen". Der Statusfilter wird nicht über Neustarts gemerkt.
 Sobald ein Filter Items ausblendet, zeigt die Liste oben einen Hinweis mit Zahlen und dem Knopf "Alle anzeigen".
 Neue Filter müssen in `filterHinweis` (web/app.js) eingetragen werden.
+
+## 17.10.2026: Farm-Liste aus Teilen und Drop-Chancen
+
+Wunsch: eine Liste, welche Items als Nächstes gefarmt werden sollten, nach vorhandenen Teilen und Drop-Schwierigkeit.
+Umgesetzt als Reiter "Farm-Liste" (Modell siehe START-HIER.md, Abschnitt Farm-Liste und Aufwand). Mit dem echten Fortschritt
+geprüft: von 499 offenen Items sind 128 leicht, 210 mittel, 52 aufwendig und 109 nur im Tresor, 101 sind sofort baubar.
+Die Zaw-Klingen (Balla, Cyath, Dehtat ...) fallen laut Daten nur im Conclave, das PvP-Gebiet wird deshalb abgewertet und in der
+Ortsansicht ans Ende sortiert.
+
+**Regel:** Die Aufwand-Zahl bleibt eine Faustregel. Änderungen an den Gewichten (`RELIKT_AUFSCHLAG`, `UNBEKANNT_VERSUCHE`,
+`BP_UNBEKANNT_VERSUCHE`, Faktor 6 und 50.000 in `aufwand`) immer zusammen mit dem Test "Aufwand mit echten Daten" prüfen.

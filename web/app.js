@@ -7,13 +7,14 @@
   var STATUS_LANG = ['Noch nicht gebaut', 'Liegt in der Schmiede', 'Gebaut, noch nicht auf Rang 30', 'Auf Rang 30, Mastery erhalten'];
   var SELTEN = { Common: 'Häufig', Uncommon: 'Ungewöhnlich', Rare: 'Selten', Legendary: 'Legendär' };
   var TABS = [
-    ['uebersicht', 'Übersicht'], ['schmiede', 'Schmiede'], ['einkauf', 'Einkaufsliste'],
+    ['uebersicht', 'Übersicht'], ['schmiede', 'Schmiede'], ['farm', 'Farm-Liste'], ['einkauf', 'Einkaufsliste'],
     ['daten', 'Daten und Import'], ['hilfe', 'Hilfe']
   ];
 
   var S = {
     db: null, nach: {}, katReihe: [], z: null, info: null, profil: null,
-    ui: { tab: 'uebersicht', kat: 'alle', status: 'alle', suche: '', sort: 'name', nurBaubar: false, ohneTresor: false, nurRezept: false, empfKat: 'alle', detail: null },
+    ui: { tab: 'uebersicht', kat: 'alle', status: 'alle', suche: '', sort: 'name', nurBaubar: false, ohneTresor: false, nurRezept: false, empfKat: 'alle', detail: null,
+      farm: { kat: 'alle', sort: 'empfehlung', nurBaubar: true, ohneTresor: true, ansicht: 'items', max: 25, maxSofort: 10 } },
     speicherStand: null, speicherFehler: false, geladen: false, lastImport: null, aktualisiert: null
   };
 
@@ -376,7 +377,7 @@
     liste.slice(0, 10).forEach(function (x) {
       h += vorschlagZeile(x.it, '<span class="xp">' + fmt(x.it.xp) + '</span> ' + aufwandHtml(x.a), esc(x.it.art) + (x.a.gruende.length ? ' · ' + esc(x.a.gruende[0]) : ''));
     });
-    h += '<p class="muted klein">Insgesamt ' + liste.length + ' passende Items. <a href="#" data-a="filter" data-status="offen" data-sort="empfehlung">Komplette Liste in der Schmiede</a></p>';
+    h += '<p class="muted klein">Insgesamt ' + liste.length + ' passende Items. <a href="#" data-a="tab" data-tab="farm">Zur Farm-Liste mit Teilen und Drop-Chancen</a></p>';
     return h + '</div>';
   }
 
@@ -564,6 +565,224 @@
     }
     h += '<section><h3>Notiz</h3><textarea data-feld="notiz" data-id="' + esc(id) + '" placeholder="z. B. Kurs, Gruppe, wo ich das Teil bekommen habe">' + esc(e && e.n ? e.n : '') + '</textarea></section>';
     $('#schublade').innerHTML = h;
+  }
+
+  /* ---------------------------------------------------------------- Farm-Liste */
+  var FARM_SORT = [
+    ['empfehlung', 'Empfehlung (Mastery pro Aufwand)'], ['leicht', 'Wenigster Aufwand zuerst'],
+    ['fertig', 'Fast fertig (meiste Teile vorhanden)'], ['xp', 'Meiste Mastery zuerst']
+  ];
+  function prozText(c) { return String(c).replace('.', ',') + ' %'; }
+  function versucheText(v) { return v < 1.5 ? '1 Versuch' : ('ca. ' + fmt(Math.ceil(v)) + ' Versuche'); }
+
+  function farmKandidaten() {
+    var f = S.ui.farm;
+    var mr = S.z.spieler.mr | 0;
+    var res = { farmen: [], sofort: [], sonder: [], tresor: 0, gesperrt: 0 };
+    S.db.items.forEach(function (it) {
+      var e = S.z.items[it.id];
+      if (R.statusVon(e) !== 0 || (e && e.x)) return;
+      if (f.kat !== 'alle' && it.kat !== f.kat) return;
+      if (mr > 0 && it.mr > mr) { res.gesperrt++; if (f.nurBaubar) return; }
+      var a = R.aufwand(it, e);
+      if (a.stufe === 'tresor') { res.tresor++; if (f.ohneTresor) return; }
+      var x = { it: it, a: a, f: a.farm, score: it.xp / (1 + a.punkte) };
+      if (!it.rezept) res.sonder.push(x);
+      else if (x.f.alleDa) res.sofort.push(x);
+      else res.farmen.push(x);
+    });
+    var sort = f.sort;
+    function vergleich(p, q) {
+      if (sort === 'leicht') return p.a.punkte - q.a.punkte || q.it.xp - p.it.xp;
+      if (sort === 'fertig') {
+        var fp = p.f.gesamt ? p.f.da / p.f.gesamt : 0;
+        var fq = q.f.gesamt ? q.f.da / q.f.gesamt : 0;
+        return fq - fp || p.a.punkte - q.a.punkte;
+      }
+      if (sort === 'xp') return q.it.xp - p.it.xp || p.a.punkte - q.a.punkte;
+      return q.score - p.score;
+    }
+    [res.farmen, res.sofort].forEach(function (l) { l.sort(function (p, q) { return vergleich(p, q) || p.it.name.localeCompare(q.it.name); }); });
+    res.sonder.sort(function (p, q) { return p.it.name.localeCompare(q.it.name); });
+    return res;
+  }
+
+  function quelleText(qu) {
+    var t = qu.ort;
+    if (qu.art === 'Relikt') t = 'Relikt ' + qu.ort;
+    t += qu.chance ? ' (' + prozText(qu.chance) + ')' : ' (Chance unbekannt)';
+    return t + ', ' + versucheText(qu.versuche);
+  }
+
+  function farmTeilWahl(itemId, partId, stufe, mitBauplan) {
+    var namen = mitBauplan ? ['Fehlt', 'Bauplan da', 'Fertig'] : ['Fehlt', '', 'Da'];
+    var h = '<div class="seg" role="group" aria-label="Teil-Status">';
+    for (var i = 0; i < 3; i++) {
+      if (!namen[i]) continue;
+      h += '<button type="button" data-a="farmteil" data-id="' + esc(itemId) + '" data-teil="' + esc(partId) + '" data-stufe="' + i + '" aria-pressed="' + (stufe === i) + '" data-s="' + (i === 0 ? 0 : (i === 1 ? 2 : 3)) + '">' + namen[i] + '</button>';
+    }
+    return h + '</div>';
+  }
+
+  function farmKarteHtml(x) {
+    var it = x.it, a = x.a, f = x.f;
+    var e = S.z.items[it.id];
+    var s = R.statusVon(e);
+    var mr = S.z.spieler.mr | 0;
+    var chips = artChip(it);
+    if (it.mr > 0) chips += '<span class="chip ' + (mr > 0 && it.mr > mr ? 'rot' : '') + '">MR ' + it.mr + '</span>';
+    if (it.prime) chips += '<span class="chip gold">Prime</span>';
+    if (it.tresor) chips += '<span class="chip rot">Tresor</span>';
+    (it.spezial || []).slice(0, 1).forEach(function (t) { chips += '<span class="chip">' + esc(t) + '</span>'; });
+    if (f.gesamt) chips += '<span class="chip ' + (f.da === f.gesamt ? 'gruen' : '') + '">Teile ' + f.da + '/' + f.gesamt + '</span>';
+    var kopf = '<div class="farmkopf">' + bildHtml(it, 'bild') +
+      '<div class="farminfo"><b class="farmname" data-a="detail" data-id="' + esc(it.id) + '" tabindex="0" role="button">' + esc(it.name) + '</b><div class="meta">' + chips + '</div></div>' +
+      '<div class="farmwert"><span class="xp">' + fmt(it.xp) + ' XP</span> ' + aufwandHtml(a) +
+      '<div class="klein muted">' + (f.alleDa && it.rezept ? 'nichts mehr zu farmen' : (a.stufe === 'tresor' ? 'nur über Varzia oder Handel' : versucheText(f.versuche))) + '</div></div></div>';
+
+    var teile = '';
+    if (s === 0 && it.rezept) {
+      /* Haupt-Blueprint */
+      var bpStufe = R.teilStufe(e, 'bp');
+      if (it.bpCredits || (it.bpQuellen && it.bpQuellen.length)) {
+        var bpT = f.teile.filter(function (t) { return t.id === 'bp'; })[0];
+        var bpInfo;
+        if (bpStufe === 2) bpInfo = '<span class="muted klein">vorhanden</span>';
+        else if (it.bpCredits) bpInfo = '<span class="klein">Im Markt kaufen für <b>' + fmt(it.bpCredits) + ' Credits</b></span>';
+        else if (bpT && bpT.quelle) bpInfo = '<span class="klein">' + esc(quelleText(bpT.quelle)) + '</span>';
+        else bpInfo = '<span class="chip tresor">nur im Tresor</span>';
+        teile += '<div class="farmteil' + (bpStufe === 2 ? ' fertig' : '') + '"><div><b>Blueprint</b> ' + bpInfo + '</div>' + farmTeilWahl(it.id, 'bp', bpStufe, false) + '</div>';
+      } else if (f.bpUnbekannt) {
+        teile += '<div class="farmteil"><div><b>Blueprint</b> <span class="chip">Quelle steht nicht in den Daten, siehe Wiki</span></div>' + farmTeilWahl(it.id, 'bp', bpStufe, false) + '</div>';
+      }
+      /* Teile */
+      it.rezept.zutaten.forEach(function (z) {
+        if (z.art !== 'teil') return;
+        var stufe = R.teilStufe(e, z.id);
+        var t = f.teile.filter(function (u) { return u.id === z.id; })[0];
+        var info = '';
+        if (stufe === 2) info = '<span class="muted klein">fertig</span>';
+        else if (stufe === 1) info = '<span class="klein">Bauplan da' + (z.rezept ? ', bauen: ' + fmt(z.rezept.kosten) + ' Credits, ' + dauer(z.rezept.zeit) : '') + '</span>';
+        else if (t && t.quelle) {
+          info = '<div class="klein">' + esc(quelleText(t.quelle)) + '</div>';
+          var andere = t.q.filter(function (qq) { return qq.ort !== t.quelle.ort; });
+          if (andere.length) info += '<div class="quellen">' + quellenHtml(andere, 4) + '</div>';
+        } else if (t && t.tresor) info = '<span class="chip tresor">nur im Tresor</span> <span class="klein muted">alle Relikte liegen im Void-Tresor</span>';
+        else info = '<span class="chip">Quelle steht nicht in den Daten, siehe Wiki</span>';
+        teile += '<div class="farmteil' + (stufe === 2 ? ' fertig' : '') + '"><div><b>' + (z.n > 1 ? z.n + ' x ' : '') + esc(z.name) + '</b> ' + info + '</div>' + farmTeilWahl(it.id, z.id, stufe, !!z.rezept) + '</div>';
+      });
+    }
+    var fuss = '<div class="farmfuss">' + statusWahl(it.id, s) +
+      '<button type="button" class="stern" data-a="stern" data-id="' + esc(it.id) + '" aria-pressed="' + !!(e && e.w) + '" title="Auf die Wunschliste">' + (e && e.w ? '★' : '☆') + '</button>' +
+      '<span class="muted klein rechts">' + (f.credits ? 'Bau: ' + fmt(f.credits) + ' Credits' : '') + '</span></div>';
+    return '<article class="farmkarte' + (s > 0 ? ' erledigt' : '') + '" data-id="' + esc(it.id) + '">' + kopf + (teile ? '<div class="farmteile">' + teile + '</div>' : '') + fuss + '</article>';
+  }
+
+  function farmOrteHtml(k) {
+    var orte = R.orteGruppieren(k.farmen.map(function (x) { return { item: x.it, farm: x.f }; }));
+    var h = '<p class="muted klein">Hier steht, an welchen Orten du Teile für <b>mehrere</b> Items gleichzeitig bekommst. Sortiert nach Anzahl der Items, dann nach Aufwand. ' +
+      'Die Versuche gelten für alle Teile an dem Ort zusammen.</p><div class="raster zwei">';
+    orte.slice(0, 30).forEach(function (o) {
+      var art = o.art === 'Relikt' ? 'Relikt (Void-Fissur)' : (/Assassination/.test(o.ort) ? 'Boss' : 'Drop');
+      h += '<div class="karte"><h3>' + esc(o.ort) + '</h3><div class="meta" style="display:flex;gap:6px;flex-wrap:wrap;margin:4px 0 8px">' +
+        '<span class="chip">' + art + '</span><span class="chip gold">' + o.anzahlItems + (o.anzahlItems === 1 ? ' Item' : ' Items') + '</span>' +
+        '<span class="chip">' + versucheText(o.versuche) + '</span>' + (/Conclave/i.test(o.ort) ? '<span class="chip rot">PvP</span>' : '') + '</div>';
+      o.teile.slice(0, 10).forEach(function (x) {
+        h += '<div class="res"><span><b data-a="detail" data-id="' + esc(x.item.id) + '" style="cursor:pointer">' + esc(x.item.name) + '</b> <span class="muted klein">' + esc(x.teil.name.replace(x.item.name, '').trim() || x.teil.name) + '</span></span>' +
+          '<span class="muted klein">' + (x.teil.quelle.chance ? prozText(x.teil.quelle.chance) : '?') + '</span></div>';
+      });
+      if (o.teile.length > 10) h += '<p class="muted klein">und ' + (o.teile.length - 10) + ' weitere Teile</p>';
+      h += '</div>';
+    });
+    if (!orte.length) h += '<div class="leer">Keine Farm-Orte gefunden.</div>';
+    return h + '</div>';
+  }
+
+  function renderFarm() {
+    var f = S.ui.farm;
+    var mr = S.z.spieler.mr | 0;
+    var k = farmKandidaten();
+    var h = '<div class="kopfzeile"><h1>Farm-Liste</h1><span class="muted">Was du als Nächstes farmen solltest</span></div>';
+    h += '<p class="muted klein" style="margin-top:-6px">Der Aufwand ergibt sich aus den Drop-Chancen der <b>fehlenden</b> Teile (erwartete Versuche, bei Relikten plus ein Aufschlag fürs Besorgen des Relikts). ' +
+      'Teile, die du schon hast, zählen nicht mehr. Hake sie direkt in den Karten ab, sobald du sie hast, dann rutscht das Item in der Liste nach oben.</p>';
+
+    h += '<div class="werkzeug">' +
+      '<select data-ffeld="kat" aria-label="Kategorie"><option value="alle">Alle Kategorien</option>' + S.katReihe.map(function (c) {
+        return '<option value="' + c.key + '"' + (f.kat === c.key ? ' selected' : '') + '>' + esc(c.name) + '</option>';
+      }).join('') + '</select>' +
+      '<select data-ffeld="sort" aria-label="Sortierung">' + FARM_SORT.map(function (o) {
+        return '<option value="' + o[0] + '"' + (f.sort === o[0] ? ' selected' : '') + '>' + o[1] + '</option>';
+      }).join('') + '</select>' +
+      '<label class="haken"><input type="checkbox" data-ffeld="nurBaubar"' + (f.nurBaubar ? ' checked' : '') + '>Nur baubar mit meinem MR' + (mr ? ' (' + mr + ')' : '') + '</label>' +
+      '<label class="haken"><input type="checkbox" data-ffeld="ohneTresor"' + (f.ohneTresor ? ' checked' : '') + '>Tresor ausblenden</label>' +
+      '<div class="seg rechts" role="group" aria-label="Ansicht"><button type="button" data-a="farmansicht" data-v="items" aria-pressed="' + (f.ansicht === 'items') + '" data-s="2">Nach Item</button>' +
+      '<button type="button" data-a="farmansicht" data-v="orte" aria-pressed="' + (f.ansicht === 'orte') + '" data-s="2">Nach Farm-Ort</button></div></div>';
+
+    var teile = [];
+    teile.push('<b>' + k.farmen.length + '</b> zu farmen');
+    teile.push('<b>' + k.sofort.length + '</b> sofort baubar');
+    if (k.sonder.length) teile.push('<b>' + k.sonder.length + '</b> Sonderbezug');
+    if (k.tresor && f.ohneTresor) teile.push(k.tresor + ' im Tresor ausgeblendet');
+    if (k.gesperrt && f.nurBaubar) teile.push(k.gesperrt + ' wegen zu hohem MR ausgeblendet');
+    h += '<p class="muted klein">' + teile.join(' · ') + '</p>';
+
+    if (f.ansicht === 'orte') {
+      h += farmOrteHtml(k);
+      $('#ansicht').innerHTML = h;
+      return;
+    }
+
+    /* Sofort baubar */
+    if (k.sofort.length) {
+      h += '<div class="karte" style="margin-bottom:16px"><details id="farmsofort"' + (f.sofortOffen ? ' open' : '') + '><summary><b>Sofort baubar (' + k.sofort.length + ')</b>: kein Teil fehlt, es sind nur Rohstoffe und Credits nötig</summary>';
+      k.sofort.slice(0, f.maxSofort).forEach(function (x) {
+        var e = S.z.items[x.it.id];
+        h += '<div class="vorschlag">' + bildHtml(x.it, 'bild') + '<div><b data-a="detail" data-id="' + esc(x.it.id) + '">' + esc(x.it.name) + '</b>' +
+          '<div class="klein muted">' + esc(x.it.art) + ' · ' + (x.f.bpMarkt ? 'Blueprint im Markt ' + fmt(x.f.bpMarkt) + ' Credits, ' : '') + 'Bau ' + fmt(x.f.credits - (x.f.bpMarkt || 0)) + ' Credits</div></div>' +
+          '<div style="text-align:right"><span class="xp">' + fmt(x.it.xp) + '</span> ' + statusWahl(x.it.id, R.statusVon(e)) + '</div></div>';
+      });
+      if (k.sofort.length > f.maxSofort) h += '<p><button class="knopf klein" data-a="farmmehr" data-was="sofort">Mehr anzeigen (' + (k.sofort.length - f.maxSofort) + ' weitere)</button></p>';
+      h += '</details></div>';
+    }
+
+    /* Zu farmen */
+    h += '<h2 style="margin:6px 0 10px">Zu farmen</h2>';
+    if (!k.farmen.length) h += '<div class="leer">Nichts zu farmen mit diesen Filtern.</div>';
+    h += '<div class="farmliste">';
+    k.farmen.slice(0, f.max).forEach(function (x) { h += farmKarteHtml(x); });
+    h += '</div>';
+    if (k.farmen.length > f.max) h += '<p style="text-align:center;margin-top:12px"><button class="knopf" data-a="farmmehr" data-was="farmen">Mehr anzeigen (' + (k.farmen.length - f.max) + ' weitere)</button></p>';
+
+    /* Sonderbezug */
+    if (k.sonder.length) {
+      h += '<div class="karte" style="margin-top:20px"><details><summary><b>Sonderbezug (' + k.sonder.length + ')</b>: kein Schmiede-Rezept, kommt aus Markt, Syndikat, Händler, Inkubator oder Quest</summary><table><tbody>';
+      k.sonder.slice(0, 80).forEach(function (x) {
+        h += '<tr><td><b data-a="detail" data-id="' + esc(x.it.id) + '" style="cursor:pointer">' + esc(x.it.name) + '</b></td><td class="klein muted">' + esc(x.it.art) + '</td><td class="klein">' + esc((x.it.spezial || [])[0] || 'siehe Wiki') +
+          '</td><td class="num">' + fmt(x.it.xp) + ' XP</td></tr>';
+      });
+      h += '</tbody></table></details></div>';
+    }
+    $('#ansicht').innerHTML = h;
+  }
+
+  function elementErneuern(id) {
+    var it = S.nach[id];
+    var karte = document.querySelector('.farmkarte[data-id="' + CSS.escape(id) + '"]');
+    if (karte && it) {
+      var e = S.z.items[id];
+      var a = R.aufwand(it, e);
+      var t = document.createElement('div');
+      t.innerHTML = farmKarteHtml({ it: it, a: a, f: a.farm, score: 0 });
+      karte.replaceWith(t.firstChild);
+      return;
+    }
+    if (S.ui.tab === 'farm') {
+      var y = window.scrollY;
+      renderFarm();
+      window.scrollTo(0, y);
+      return;
+    }
+    zeileErneuern(id);
   }
 
   /* ---------------------------------------------------------------- Einkaufsliste */
@@ -767,7 +986,8 @@
     h += '<div class="karte"><h2>So benutzt du das Programm</h2><ol class="schritte">' +
       '<li><b>Mastery Rank eintragen</b> (Übersicht). Dann rechnet das Programm aus, was bis zum nächsten Rang fehlt.</li>' +
       '<li><b>Abhaken, was du schon hast</b>: In der Schmiede setzt du bei jedem Item den Status. "Alle sichtbaren ändern" erledigt ganze Gruppen auf einmal, zum Beispiel alle Items einer Kategorie, die du schon hast.</li>' +
-      '<li><b>Plane</b>: Die Übersicht zeigt, wie viele Items bis zum nächsten MR fehlen und was sich am meisten lohnt. Setze Sterne und lass dir die Einkaufsliste ausrechnen.</li>' +
+      '<li><b>Farm-Liste</b>: Sie zeigt, welche Items du als Nächstes farmen solltest, sortiert nach Mastery pro Aufwand. Hake dort die Teile ab, die du schon hast, dann rutschen die Items nach oben.</li>' +
+      '<li><b>Plane</b>: Die Übersicht zeigt, wie viele Items bis zum nächsten MR fehlen. Setze Sterne und lass dir die Einkaufsliste ausrechnen.</li>' +
       '<li><b>Nichts doppelt bauen</b>: Gebaute Items sind grün oder gelb markiert und erscheinen nicht mehr in der Empfehlung. In der Einkaufsliste zählt nur, was du wirklich noch brauchst.</li></ol></div>';
     h += '<div class="karte"><h2>Was zählt für den Mastery Rank?</h2><ul>' +
       '<li>Warframes, Begleiter, Archwings, K-Drives, Necramechs: <b>6.000 XP</b> bei Rang 30.</li>' +
@@ -783,7 +1003,7 @@
       '<tr><td><b>Gebaut</b></td><td>Du hast es mindestens einmal gebaut, aber noch nicht auf Rang 30. Nicht erneut bauen, nur leveln.</td></tr>' +
       '<tr><td><b>Rang 30</b></td><td>Fertig, die Punkte sind erhalten.</td></tr>' +
       '<tr><td><b>Zurückgestellt</b></td><td>Gehört dazu, ist aber nicht erreichbar (z. B. Founder) oder unwichtig. Zählt nicht als offen.</td></tr></tbody></table></div>';
-    h += '<div class="karte"><h2>Aufwand-Einschätzung</h2><p>Die Empfehlung rechnet Mastery geteilt durch Aufwand. Aufwand ergibt sich aus Credits, Teilen, die gedroppt werden müssen, und Teilen aus Relikten. ' +
+    h += '<div class="karte"><h2>Aufwand-Einschätzung</h2><p>Die Empfehlung rechnet Mastery geteilt durch Aufwand. Aufwand sind die erwarteten Versuche für alle <b>fehlenden</b> Teile (100 geteilt durch die Drop-Chance, für mehrere Teile am selben Ort die erwartete Zeit, bis alle gefallen sind), bei Relikten plus ein Aufschlag fürs Besorgen, dazu Credits. PvP-Orte (Conclave) zählen dreifach. ' +
       'Items, deren Relikte alle im Void-Tresor liegen, stehen als "Tresor" ganz unten, denn sie gibt es nur über Varzia (Prime Resurgence), Handel oder Events. Das ist eine Faustregel, kein Gesetz: Rohstoffe wie Tellurium oder Argon-Kristalle sind unterschiedlich schwer zu bekommen.</p>' +
       '<p class="muted klein">Tastatur: <kbd>/</kbd> springt zur Suche, <kbd>Esc</kbd> schließt die Details.</p></div>';
     h += '<div class="karte"><h2>Datenquellen</h2><p class="klein">Itemliste, Drops und Relikte: <a href="https://github.com/WFCD/warframe-items" target="_blank" rel="noopener noreferrer">WFCD warframe-items</a>. ' +
@@ -799,6 +1019,7 @@
     var t = S.ui.tab;
     if (t === 'uebersicht') renderUebersicht();
     else if (t === 'schmiede') renderSchmiede();
+    else if (t === 'farm') renderFarm();
     else if (t === 'einkauf') renderEinkauf();
     else if (t === 'daten') renderDaten();
     else renderHilfe();
@@ -811,7 +1032,8 @@
     window.scrollTo(0, 0);
   }
   function uiMerken() {
-    S.z.einst.ui = { tab: S.ui.tab, kat: S.ui.kat, sort: S.ui.sort, nurBaubar: S.ui.nurBaubar, ohneTresor: S.ui.ohneTresor, nurRezept: S.ui.nurRezept, empfKat: S.ui.empfKat };
+    S.z.einst.ui = { tab: S.ui.tab, kat: S.ui.kat, sort: S.ui.sort, nurBaubar: S.ui.nurBaubar, ohneTresor: S.ui.ohneTresor, nurRezept: S.ui.nurRezept, empfKat: S.ui.empfKat,
+      farm: { kat: S.ui.farm.kat, sort: S.ui.farm.sort, nurBaubar: S.ui.farm.nurBaubar, ohneTresor: S.ui.farm.ohneTresor, ansicht: S.ui.farm.ansicht } };
     try { localStorage.setItem('wfw_ui', JSON.stringify(S.z.einst.ui)); } catch (e) { /* egal */ }
   }
 
@@ -830,6 +1052,19 @@
         S.ui.kat = 'alle';
         wechsleTab('schmiede');
         break;
+      case 'farmteil': {
+        var fe = ez(id);
+        fe.t = fe.t || {};
+        fe.t[el.getAttribute('data-teil')] = +el.getAttribute('data-stufe');
+        speichern();
+        elementErneuern(id);
+        break;
+      }
+      case 'farmansicht': S.ui.farm.ansicht = el.getAttribute('data-v'); uiMerken(); renderFarm(); break;
+      case 'farmmehr':
+        if (el.getAttribute('data-was') === 'sofort') S.ui.farm.maxSofort += 20; else S.ui.farm.max += 25;
+        renderFarm();
+        break;
       case 'filterweg':
         S.ui.status = 'alle'; S.ui.nurBaubar = false; S.ui.ohneTresor = false; S.ui.nurRezept = false; S.ui.suche = '';
         uiMerken();
@@ -839,12 +1074,12 @@
       case 'zu': schliesseDetail(); break;
       case 'status':
         setStatus(id, +el.getAttribute('data-s'));
-        zeileErneuern(id);
+        elementErneuern(id);
         if (S.ui.detail === id) renderSchublade();
         break;
       case 'stern':
         toggle(id, 'w');
-        if (el.getAttribute('data-neu')) render(); else { zeileErneuern(id); }
+        if (el.getAttribute('data-neu')) render(); else { elementErneuern(id); }
         if (S.ui.detail === id) renderSchublade();
         break;
       case 'teil': {
@@ -888,6 +1123,9 @@
       if (s) { ev.preventDefault(); s.focus(); }
     }
   });
+  document.addEventListener('toggle', function (ev) {
+    if (ev.target && ev.target.id === 'farmsofort') S.ui.farm.sofortOffen = ev.target.open;
+  }, true);
   var sucheTimer = null;
   document.addEventListener('input', function (ev) {
     var t = ev.target;
@@ -906,6 +1144,14 @@
     if (t.getAttribute && t.getAttribute('data-a') === 'zurueck') {
       var id = t.getAttribute('data-id');
       ez(id).x = t.checked; speichern(); zeileErneuern(id); return;
+    }
+    var ff = t.getAttribute && t.getAttribute('data-ffeld');
+    if (ff) {
+      if (['nurBaubar', 'ohneTresor'].indexOf(ff) >= 0) S.ui.farm[ff] = t.checked; else S.ui.farm[ff] = t.value;
+      S.ui.farm.max = 25; S.ui.farm.maxSofort = 10;
+      uiMerken();
+      renderFarm();
+      return;
     }
     if (t.id === 'importdatei') { dateiLaden(t.files[0]); return; }
     if (!feld) return;
@@ -1022,6 +1268,8 @@
     if (u) {
       ['tab', 'kat', 'sort', 'nurBaubar', 'ohneTresor', 'nurRezept', 'empfKat'].forEach(function (k) { if (u[k] !== undefined) S.ui[k] = u[k]; });
     }
+    if (u && u.farm) Object.keys(u.farm).forEach(function (k) { S.ui.farm[k] = u.farm[k]; });
+    if (S.ui.farm.kat !== 'alle' && !S.katReihe.some(function (k) { return k.key === S.ui.farm.kat; })) S.ui.farm.kat = 'alle';
     if (!S.katReihe.some(function (k) { return k.key === S.ui.kat; })) S.ui.kat = 'alle';
     if (!TABS.some(function (t) { return t[0] === S.ui.tab; })) S.ui.tab = 'uebersicht';
   }

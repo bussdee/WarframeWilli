@@ -97,4 +97,91 @@ test('MR-Plan', () => {
   assert.strictEqual(R.mrPlan({ mr: 29, zielMr: 20 }, 0).ziel, 30);
 });
 
+test('Erwartete Versuche', () => {
+  const nah = (a, b) => assert.ok(Math.abs(a - b) < 1e-9, a + ' ist nicht ' + b);
+  nah(R.erwartetMax([]), 0);
+  nah(R.erwartetMax([0.5]), 2);
+  nah(R.erwartetMax([1]), 1);
+  nah(R.erwartetMax([0.5, 0.5]), 8 / 3);          // Maximum zweier geometrischer Verteilungen
+  assert.ok(Math.abs(R.erwartetMax([0.25, 0.25, 0.25]) - 6.872586872586873) < 1e-6);   // Handrechnung per Einschluss-Ausschluss
+  assert.ok(R.erwartetMax([0.3, 0.3]) > R.erwartetMax([0.3]));
+  assert.ok(R.erwartetMax([0.3, 0.3]) < 2 / 0.3);
+});
+
+test('Beste Quelle', () => {
+  const q = [
+    { ort: 'Lith A1', art: 'Relikt', chance: 25, tresor: true },
+    { ort: 'Meso B2', art: 'Relikt', chance: 11 },
+    { ort: 'Venus/Fossa', art: 'Drop', chance: 38 },
+    { ort: 'Saturn/Variant (Conclave)', art: 'Drop', chance: 90 }
+  ];
+  const b = R.besteQuelle(q);
+  assert.strictEqual(b.ort, 'Venus/Fossa');
+  assert.strictEqual(R.besteQuelle([q[0]]), null, 'Tresor-Relikte zaehlen nicht');
+  const pvp = R.besteQuelle([q[3]]);
+  assert.strictEqual(pvp.pvp, true);
+  assert.ok(pvp.versuche > 1 / 0.9 * 2.5);
+  assert.strictEqual(R.besteQuelle([{ ort: 'X', art: 'Drop' }]).geschaetzt, true);
+});
+
+test('Farm-Plan: Teile verkuerzen die Liste', () => {
+  const rhino = db.items.find(i => i.name === 'Rhino');
+  const leer = R.farm(rhino, undefined);
+  assert.strictEqual(leer.teile.length, 3);
+  assert.strictEqual(leer.gruppen.length, 1, 'alle drei Teile fallen am selben Ort');
+  assert.ok(leer.versuche > 2 && leer.versuche < 30);
+  assert.strictEqual(leer.da, 0);
+  assert.strictEqual(leer.alleDa, false);
+  const e = { t: {} };
+  rhino.rezept.zutaten.filter(z => z.art === 'teil').forEach((z, i) => { e.t[z.id] = i === 0 ? 2 : 1; });
+  const mit = R.farm(rhino, e);
+  assert.strictEqual(mit.teile.length, 0);
+  assert.strictEqual(mit.da, 3);
+  assert.strictEqual(mit.versuche, 0);
+  assert.strictEqual(mit.alleDa, true);
+  const halb = { t: {} };
+  halb.t[rhino.rezept.zutaten.find(z => z.art === 'teil').id] = 2;
+  const h = R.farm(rhino, halb);
+  assert.strictEqual(h.teile.length, 2);
+  assert.ok(h.versuche < leer.versuche);
+});
+
+test('Farm-Plan: Tresor und unbekannte Quellen', () => {
+  const nurTresor = { name: 'T', xp: 3000, kat: 'primary', rezept: { kosten: 1000, zeit: 10, zutaten: [
+    { id: 'p1', name: 'P1', n: 1, art: 'teil', q: [{ ort: 'Lith A1', art: 'Relikt', chance: 25, tresor: true }] }] } };
+  const f = R.farm(nurTresor, undefined);
+  assert.strictEqual(f.tresor, true);
+  assert.strictEqual(R.aufwand(nurTresor, undefined).stufe, 'tresor');
+  const unbekannt = { name: 'U', xp: 3000, kat: 'primary', bpCredits: 1000, rezept: { kosten: 1000, zeit: 10, zutaten: [
+    { id: 'p1', name: 'P1', n: 1, art: 'teil', q: [] }] } };
+  const u = R.farm(unbekannt, undefined);
+  assert.strictEqual(u.unbekannt, 1);
+  assert.ok(u.versuche >= 25);
+  assert.strictEqual(u.alleDa, false);
+});
+
+test('Orte gruppieren', () => {
+  const mk = (name, ort, chance) => ({ name, xp: 3000, id: name, rezept: { kosten: 0, zeit: 0, zutaten: [
+    { id: name + 'teil', name: name + ' Teil', n: 1, art: 'teil', q: [{ ort, art: 'Drop', chance }] }] } });
+  const a = mk('A', 'Ort1', 50), b = mk('B', 'Ort1', 25), c = mk('C', 'Ort2', 50);
+  const orte = R.orteGruppieren([a, b, c].map(it => ({ item: it, farm: R.farm(it, undefined) })));
+  assert.strictEqual(orte[0].ort, 'Ort1');
+  assert.strictEqual(orte[0].anzahlItems, 2);
+  assert.ok(orte[0].versuche > 4, 'mindestens so viele Versuche wie das seltenste Teil');
+  assert.strictEqual(orte[1].anzahlItems, 1);
+  const pv = mk('P', 'Mode (Conclave)', 90), pw = mk('Q', 'Mode (Conclave)', 90), r = mk('R', 'Ort3', 10);
+  const o2 = R.orteGruppieren([pv, pw, r].map(it => ({ item: it, farm: R.farm(it, undefined) })));
+  assert.strictEqual(o2[o2.length - 1].ort, 'Mode (Conclave)', 'PvP-Orte stehen am Ende');
+});
+
+test('Aufwand mit echten Daten: alle Items rechnen, Verteilung plausibel', () => {
+  const stufen = {};
+  db.items.forEach(i => {
+    const a = R.aufwand(i, undefined);
+    assert.ok(isFinite(a.punkte), i.name);
+    stufen[a.stufe] = (stufen[a.stufe] || 0) + 1;
+  });
+  assert.ok(stufen.leicht > 50 && stufen.mittel > 50 && stufen.aufwendig > 10 && stufen.tresor > 20, JSON.stringify(stufen));
+});
+
 console.log('Alle ' + n + ' Rechen-Tests bestanden.');
