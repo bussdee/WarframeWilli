@@ -319,6 +319,25 @@ summary { cursor: pointer; color: var(--akzent2); font-weight: 600; }
   .farmwert { grid-column: 1 / -1; flex-direction: row; justify-content: space-between; align-items: center; }
   .farmteil { flex-direction: column; align-items: flex-start; }
 }
+/* Profilwahl */
+.profilwahl { display: grid; gap: 10px; max-width: 620px; }
+.profilkarte { display: flex; gap: 10px; align-items: stretch; }
+.profilknopf {
+  flex: 1 1 auto; text-align: left; background: var(--panel); border: 1px solid var(--rand); border-radius: var(--radius);
+  padding: 14px 16px; cursor: pointer; display: flex; flex-direction: column; gap: 3px; font-size: 1.05rem;
+}
+.profilknopf:hover { border-color: var(--akzent); }
+
+/* Handy: groessere Tippflaechen */
+@media (pointer: coarse), (max-width: 760px) {
+  .seg button { padding: 9px 12px; font-size: .88rem; }
+  .stern { font-size: 1.6rem; padding: 4px 10px; }
+  .knopf { padding: 10px 16px; }
+  .knopf.klein { padding: 8px 12px; }
+  .tab { padding: 10px 14px; }
+  .haken input { width: 22px; height: 22px; }
+  select, input[type="text"], input[type="search"], input[type="number"] { min-height: 44px; font-size: 16px; }
+}
 @media print {
   .kopf, .werkzeug, .abdunkeln, .schublade, .knopf, #toast { display: none !important; }
   body { background: #fff; color: #000; }

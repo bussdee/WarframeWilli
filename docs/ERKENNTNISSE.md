@@ -119,3 +119,95 @@ Ortsansicht ans Ende sortiert.
 
 **Regel:** Die Aufwand-Zahl bleibt eine Faustregel. Änderungen an den Gewichten (`RELIKT_AUFSCHLAG`, `UNBEKANNT_VERSUCHE`,
 `BP_UNBEKANNT_VERSUCHE`, Faktor 6 und 50.000 in `aufwand`) immer zusammen mit dem Test "Aufwand mit echten Daten" prüfen.
+
+## 17.10.2026: Profile auf dem Server statt Speichern im Handy
+
+Wunsch: Familienmitglieder benutzen das Werkzeug auf dem Pi im Heimnetz, nur mit Handys. Der erste Gedanke war, dass jeder seine
+Einstellungen im Gerät speichert und lädt. Entschieden wurde anders, mit Begründung:
+
+* Der Browser-Speicher (`localStorage`) gehört zu genau einer Adresse. Wechselt die Adresse (IP statt Name, neue IP nach einem Router-Neustart),
+  sieht der Benutzer seinen Fortschritt nicht mehr.
+* Safari auf dem iPhone löscht Webseiten-Speicher, wenn die Seite eine Woche nicht benutzt wurde (außer als Startbildschirm-App).
+* Beides wirkt für Benutzer wie Datenverlust. Dasselbe passierte schon einmal lokal, als ein Filter den Fortschritt ausblendete.
+
+Deshalb liegt der Fortschritt in Profilen auf dem Pi (`daten/profile/`), der Browser merkt sich nur, welches Profil gewählt ist. Die Datei zum Speichern und Laden bleibt als
+Mitnahme-Weg erhalten (zum Beispiel PC nach Pi).
+
+**Regel:** Fortschritt der Benutzer liegt nie nur im Browser. Der Browser-Speicher ist höchstens eine Zweitkopie.
+
+## 17.10.2026: Gleichzeitige Änderungen und veraltete Anzeigen
+
+* Zwei Geräte im selben Profil, oder zwei Fenster im lokalen Modus, würden sich sonst gegenseitig überschreiben. Der Stand trägt eine Revision (`rev`),
+  der Server lehnt veraltete Stände mit 409 ab, die Oberfläche lädt dann den neuen Stand. Speichern läuft in der Oberfläche immer nur eine Anfrage zugleich,
+  sonst lehnt der Server die eigene zweite Anfrage ab.
+* Im Browser-Test fiel auf: Eine spät eintreffende Antwort der Profilwahl überschrieb die schon geladene Übersicht. Asynchrone Zeichenläufe müssen prüfen, ob sie noch gebraucht werden
+  (`if (S.nutzer) return;` in `renderProfilWahl`).
+
+**Regel:** Jeder asynchrone Aufruf, der die Seite zeichnet, prüft vor dem Zeichnen, ob sein Ergebnis noch gilt.
+
+## 17.10.2026: Zugriffsregeln im Heimnetz
+
+* Der Host-Kopf wird geprüft, auch im Heimnetz: erlaubt sind private IP-Adressen und lokale Namen (`.local`, `.lan`, `.fritz.box`, ohne Punkt), sonst 403.
+  Das schützt vor DNS-Rebinding (eine fremde Webseite lässt ihren Namen auf die Pi-Adresse zeigen). Weitere Namen: `WFW_HOSTS`.
+* Die Datenbank bauen darf im Familienmodus nur der Server-Rechner selbst. Bilder werden nur geladen, wenn sie in der Datenbank vorkommen.
+* Es gibt keine Anmeldung. Das ist eine bewusste Grenze, siehe `KONTRAKT.md`. Ein gemeinsamer Familien-Code wäre eine mögliche Erweiterung.
+
+## 17.10.2026: Deploy nur mit Freigabe, Werkzeuge im Test
+
+Der Projektinhaber hat klargestellt: Für das Deploy gibt es Regeln, vorher gibt es keine Freigabe. Auf dem Pi wurde deshalb nichts installiert, nichts per `scp` verschickt
+und nichts auf GitHub veröffentlicht. Ablauf und Paket stehen in `UEBERGABE-1.1.0.md`, die Prüfliste in `CHECKLISTE-1.1.0.md`.
+Den Aufruf der Heimnetz-Adresse im Browser-Werkzeug hat der Projektinhaber abgelehnt, getestet wurde auf `127.0.0.1` (der Host-Test der Regeln läuft mit Anfragen per `curl`).
+
+**Regel:** Deploy (Installation auf dem Pi, Upload, Veröffentlichung) nur nach ausdrücklicher Freigabe. Vorher: Kontrakt und Stand lesen, Plan, Bauen, echte Prüfung,
+Paket, Übergabe, Testliste. Heimnetz-Adressen nicht ohne Erlaubnis im Browser aufrufen.
+
+## 17.10.2026: Die Pi-Regeln zuerst lesen, dann bauen (Korrektur zum systemd-Weg)
+
+Für die Installation auf dem Pi wurde zuerst ein systemd-Installer mit `sudo`, eigenem Benutzer, `/opt`, Port 8765 und Binden auf alle Adressen gebaut, ohne vorher
+die Regeln des Projektinhabers für den Pi zu suchen. Dazu wurde, auf den Hinweis "Für den Deploy haben wir Regeln", zuerst im falschen Projekt nach Regeln gesucht (Klassenkiste, die es
+auf dem Pi nicht gibt). Die richtige Datei liegt bei den Pi-Projekten des Projektinhabers (`PI-PROJEKTE-INSTALLIEREN.md`). Sie verbietet den ganzen Weg:
+Der Pi ist ein LIVE-Gerät, Projekte sind Docker-Compose-Stacks im eigenen Ordner, Ports aus 8100 bis 8199, nur an die LAN-Adresse gebunden, kein `sudo`, nichts raten.
+Nichts davon war auf dem Pi angekommen. Der systemd-Weg wurde komplett entfernt und durch Docker ersetzt.
+
+**Regel:** Bevor ein Weg auf ein fremdes oder gemeinsames Gerät gebaut wird, nach den Regeln für dieses Gerät fragen oder suchen, notfalls den Projektinhaber nach der Datei fragen.
+Regeln eines anderen Projekts gelten nicht automatisch. Die Pi-Regeln sind im Projekt als Test festgehalten (`PiRegeln` in `tests/test_alles.py`, mit Gegenproben).
+
+## 17.10.2026: Werkzeuge gegen die Wirklichkeit testen, auch den grünen Fall
+
+Aus den Pi-Regeln (Abschnitt "Was schon schiefgegangen ist"): Ein Prüfwerkzeug, das nur Rot kann, beweist nichts. Deshalb laufen der Rauchtest gegen einen gesunden und gegen drei absichtlich
+kaputte Server, die Pi-Regel-Prüfung mit 19 künstlichen Verstößen, die Skripte gegen Attrappen von `docker`, `rsync` und `ssh`, und `make deploy` wird nur ohne Antwort gestartet
+(es bricht ab, ohne dass `rsync` oder `ssh` aufgerufen werden). Nie getestet wird mit eingespeisten Antworten, das wäre ein Umgehen der Rückfragen.
+Der erste Entwurf der Versions-Gegenprobe war selbst blind (sie verglich den Server mit sich selbst), erst die Version aus der Datei `VERSION` hat sie scharf gemacht.
+
+**Regel:** Jede Prüfung bekommt eine Gegenprobe am echten Fehler, und die Gegenprobe selbst wird geprüft.
+
+## 17.10.2026: Container und Speicher
+
+* Der Datenbankbau lädt rund 25 MB JSON, im Speicher ein Vielfaches. Die Relikt-Datei (die größte) wird deshalb zuerst gelesen, zu einer kleinen Karte verdichtet und verworfen.
+  Gemessen ist der Spitzenbedarf noch nicht, die Grenze im Container steht vorsichtig bei 512 MB (Regeln: ein hängender Prozess darf Plex den Speicher nicht nehmen).
+* Im Container kommen Aufrufe nie von `127.0.0.1`, die Verwaltungsrechte (Datenbank bauen per Oberfläche) sind dort immer aus. Das Auto-Update (`WFW_AUTO_UPDATE_TAGE`, Standard 0 = aus)
+  ersetzt den Wochen-Timer, ohne Cron und ohne systemd.
+* Das Dateisystem ist nur lesbar. Geschrieben wird ausschließlich nach `/data` (Bind-Mount `./data`) und `/tmp` (tmpfs).
+
+## 17.10.2026: Speicherbedarf gemessen (Korrektur der Schätzung)
+
+Die Schätzung "170 bis 250 MB für den Datenbankbau" war falsch. Gemessen im Container (cgroup, 5-ms-Takt, erster Start ohne Datenbank): Spitze 70 MiB, davon 67 MiB Programm.
+Die 512-MB-Grenze hat damit reichlich Luft. Den Wert nannte ich vorher nur geschätzt, die Messung war vor dem Deploy nötig und hat die Sorge ausgeräumt.
+Der Datenbankbau mit zuerst verdichteter Relikt-Datei liefert dieselbe Datenbank wie vorher (Item-IDs, Rezepte, Quellen identisch).
+
+**Regel:** Grenzen für Container (Speicher, CPU) werden gemessen, nicht geschätzt. Dazu die cgroup lesen (`memory.current` und `memory.stat`, hier gibt es kein `memory.peak`) und in feinem Takt abfragen,
+sonst entgehen kurze Spitzen.
+
+## 17.10.2026: Deploy auf den Pi, Nachprüfung und ein Befund, den nur das Gerät zeigte
+
+Der Projektinhaber hat den Plan bestätigt und `make deploy` mit den zwei Rückfragen selbst ausgeführt. Die Nachprüfung (`pi-pruefen.py nach`, Handprüfungen, lesender Rauchtest) war grün:
+Version 1.1.0, Container healthy mit 0 Neustarts, Port nur an der LAN-Adresse, Daten gehören dem Benutzer, keine Fehler im Log, kein fremder Container verändert.
+
+Ein Befund fiel erst am Gerät auf: Die Speichergrenze (`mem_limit: 512m`) wirkt dort nicht. Der Kernel des Pi startet mit `cgroup_disable=memory`, `docker inspect` zeigt `Memory=0`, `docker stats` `0B / 0B`,
+`docker info` warnt "No memory limit support". Das trifft alle Container auf dem Pi, auch Plex. Weder der lokale Test (dort wirkt die Grenze) noch die Vorprüfung konnten das zeigen.
+
+**Regel:** Eine Grenze in der Compose-Datei beweist nichts. Nach dem Deploy nachsehen, ob sie am Gerät wirkt (`docker inspect` auf `Memory` und `NanoCpus`, `docker info` auf Warnungen).
+Ergebnisse, die nur das Zielgerät zeigt, gehören in die Übergabe, und eine Regel, die dort nicht greift, wird dem Projektinhaber gemeldet, nicht still hingenommen.
+Der systemweite Eingriff (Kernelzeile, Neustart) bleibt eine Entscheidung des Projektinhabers.
+
+Die Nachprüfung deckte sich mit der lokalen Messung: Prozessgröße rund 72 MB im Pi gegen 70 MiB Spitze lokal.

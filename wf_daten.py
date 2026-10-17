@@ -185,13 +185,15 @@ def quellen_aus_drops(drops, relikte):
 
 def baue(log=print):
     DATEN.mkdir(exist_ok=True)
+    # Die Relikt-Datei ist die groesste (rund 9 MB, im Speicher ein Vielfaches). Sie wird zuerst gelesen, auf eine kleine
+    # Karte verdichtet und sofort verworfen, damit der Spitzenbedarf an Arbeitsspeicher klein bleibt (Container mit Grenze).
+    relikte = relikt_karte(lade_wfcd("Relics", log))
     wfcd = {}
-    for name in QUELL_DATEIEN + HILFS_DATEIEN:
+    for name in QUELL_DATEIEN + [n for n in HILFS_DATEIEN if n != "Relics"]:
         wfcd[name] = lade_wfcd(name, log)
     pe_rezepte, pe_ressourcen = lade_pe(log)
 
     log("Verknuepfe Daten ...")
-    relikte = relikt_karte(wfcd["Relics"])
     comps = {c["uniqueName"]: c for c in wfcd["Components"]}
 
     namen = {}

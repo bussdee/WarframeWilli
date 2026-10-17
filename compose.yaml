@@ -1,0 +1,46 @@
+# WarframeWilli, Familienmodus. Gebaut nach den Pi-Regeln: eigener Namensraum, Port nur an die LAN-Adresse,
+# kein Host-Netz, kein Docker-Socket, keine erhoehten Rechte, Grenzen fuer Speicher und CPU, Zeitzone Berlin.
+services:
+  app:
+    image: warframewilli-app:latest
+    build: .
+    container_name: warframewilli-app
+    restart: unless-stopped
+    user: "${PUID:-1000}:${PGID:-1000}"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp
+    mem_limit: 512m
+    cpus: 1.0
+    pids_limit: 100
+    networks:
+      - warframewilli-net
+    ports:
+      - "${BIND_ADDR:?BIND_ADDR fehlt}:${APP_PORT:-8100}:8765"
+    environment:
+      TZ: Europe/Berlin
+      WFW_DATEN: /data
+      WFW_LAN: "1"
+      WFW_AUTO_UPDATE_TAGE: "${WFW_AUTO_UPDATE_TAGE:-0}"
+    volumes:
+      - ./data:/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request as u; u.urlopen('http://127.0.0.1:8765/api/info', timeout=3).read()"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
+
+networks:
+  warframewilli-net:
+    name: warframewilli-net
+    driver: bridge

@@ -1,6 +1,9 @@
 # WarframeWilli: Einstieg
 
-Stand: 16.10.2026, Version 1.0.0 (inoffizielles Fan-Werkzeug, nicht mit Digital Extremes verbunden)
+Stand: 17.10.2026, Version 1.1.0 (inoffizielles Fan-Werkzeug, nicht mit Digital Extremes verbunden)
+
+**Betriebsstand:** Version 1.1.0 läuft seit dem 17.10.2026 im Familienmodus als Docker-Container auf dem Raspberry Pi des Projektinhabers (Port 8100, nur Heimnetz). Auf GitHub ist 1.1.0
+veröffentlicht (Push am 17.10.2026, ohne Tag und Release, beides nur auf Ansage). Einzelheiten und Offenes: `docs/UEBERGABE-1.1.0.md`.
 
 ## Zweck
 
@@ -9,10 +12,18 @@ Es zeigt, welche Items (Warframes, Waffen, Begleiter, Archwings, K-Drives, Necra
 schon gebaut und gelevelt sind, was noch fehlt, was sich am meisten lohnt und was dafür
 gefarmt werden muss. Ziel: jedes Item mindestens einmal gebaut, nichts doppelt.
 
+## Verbindliches lesen
+
+* `docs/KONTRAKT.md`: die harten Regeln, darunter **kein Deploy ohne Freigabe** des Projektinhabers.
+* `docs/UEBERGABE-1.1.0.md`: aktueller Stand, was auf den Pi geht, Offenes. Dazu `docs/CHECKLISTE-1.1.0.md` und `docs/PI.md` (Docker-Betrieb, Regeln, Zurückrollen).
+* `docs/ERKENNTNISSE.md`: Erkenntnisse, nur anhängen.
+
 ## Starten
 
 ```bash
-./start.sh          # startet den Server und öffnet den Browser auf http://127.0.0.1:8765/
+./start.sh          # lokal: startet den Server und öffnet den Browser auf http://127.0.0.1:8765/
+python3 server.py --lan   # Familienmodus: im Heimnetz erreichbar, ein Profil je Benutzer
+make up              # dasselbe als Docker-Container, nur localhost (siehe docs/PI.md)
 ```
 
 Nur Python 3 (Standardbibliothek) wird gebraucht. Pillow ist optional (verkleinert Item-Bilder).
@@ -32,7 +43,11 @@ Beenden mit Strg+C. Läuft schon eine Instanz, öffnet `start.sh` nur den Browse
 | `daten/sicherungen/` | automatische Sicherungen des Fortschritts (alle 15 Minuten bei Änderung, 40 Stück) |
 | `daten/profil_roh.json` | zuletzt eingefügtes Profil-JSON, nur falls der Benutzer eines einfügt |
 | `daten/bilder/` | Zwischenspeicher der Item-Bilder |
-| `tests/` | `alle.sh` startet alle Tests (kein Netz nötig) |
+| `daten/profile/` | Familienmodus: ein Fortschritt je Profil (`<name>.json`), Vorversionen in `daten/sicherungen/<name>/` |
+| `Dockerfile`, `compose.yaml`, `.env.example`, `Makefile` | Container nach den Pi-Regeln, Deploy nur mit zwei Rückfragen (`docs/PI.md`) |
+| `pi/` | Skripte, die auf dem Pi laufen: `pi-start.sh` (Start), `sichern.sh` (Sicherung mit geprüfter Kopie) |
+| `VERSION` | die Versionsnummer als Datei, muss mit `server.py` übereinstimmen |
+| `tests/` | `alle.sh` startet alle Tests (kein Netz nötig, außer beim ersten Bau der Datenbank), `rauchtest.py` prüft einen laufenden Server |
 | `docs/ERKENNTNISSE.md` | Erkenntnisse und Regeln, die daraus folgen. Nur anhängen. |
 | `docs/INHALTSVERZEICHNIS.md` | erzeugt, nicht von Hand pflegen: `python3 docs/inhaltsverzeichnis.py` |
 
@@ -41,8 +56,10 @@ Beenden mit Strg+C. Läuft schon eine Instanz, öffnet `start.sh` nur den Browse
 1. `wf_daten.py` lädt Itemlisten, Drops und Relikte (WFCD) sowie Rezepte inklusive Unter-Rezepte
    (PublicExport) und schreibt `daten/items.json`. Aufruf von Hand oder per Knopf "Datenbank aktualisieren".
 2. Die Oberfläche lädt `/api/daten` (Items) und `/api/zustand` (Fortschritt) und rechnet alles im Browser.
-3. Jede Änderung wird nach 350 ms an `/api/zustand` geschickt und atomar gespeichert. Zusätzlich
-   liegt eine Kopie im `localStorage` des Browsers.
+3. Jede Änderung wird nach 350 ms an `/api/zustand` geschickt (immer nur eine Anfrage zugleich) und atomar gespeichert. Zusätzlich
+   liegt eine Kopie im `localStorage` des Browsers. Der Stand trägt eine Revision (`rev`): hat inzwischen ein anderes Gerät oder Fenster
+   gespeichert, antwortet der Server mit 409, die Oberfläche lädt den neuen Stand und überschreibt nichts.
+   Im Familienmodus gehört der Stand zu einem Profil (`?profil=<name>`), die Profilwahl merkt sich der Browser.
 4. Optionaler Text-Import (Reiter Daten, eingeklappt): Profil- oder Inventar-JSON geht an `/api/profil/einlesen`,
    der Server ordnet XPInfo den Items zu, der Browser übernimmt das (nur hochstufen, nie herabstufen).
    Der Normalfall ist das Abhaken von Hand in der Schmiede.
@@ -67,7 +84,7 @@ Beenden mit Strg+C. Läuft schon eine Instanz, öffnet `start.sh` nur den Browse
 
 ## Regeln für dieses Projekt
 
-* Oberfläche und Texte auf Deutsch, Anrede "du", immer generisches Maskulinum, kein Gendern.
+* Alle harten Regeln stehen in `docs/KONTRAKT.md`. Kurz: Oberfläche und Texte auf Deutsch, Anrede "du", immer generisches Maskulinum, kein Gendern.
 * Niemals Gedankenstriche (lang oder halblang) verwenden, auch nicht in Code-Kommentaren.
   `tests/test_alles.py` prüft das über alle Dateien.
 * Item-Namen bleiben englisch, das Spiel läuft auf Englisch.

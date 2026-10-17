@@ -50,14 +50,20 @@
   function resName(id) { var r = S.db.res[id]; return r ? r.name : id.split('/').pop(); }
   function seltenheit(s) { return SELTEN[s] || s || ''; }
 
+  function antwortLesen(r) {
+    return r.json().then(function (j) {
+      if (!r.ok) { var f = new Error(j.fehler || ('Fehler ' + r.status)); f.status = r.status; f.rev = j.rev; throw f; }
+      return j;
+    });
+  }
   var API = {
     get: function (pfad) {
-      return fetch(pfad, { cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.fehler || ('Fehler ' + r.status)); return j; }); });
+      return fetch(pfad, { cache: 'no-store' }).then(antwortLesen);
     },
     post: function (pfad, body) {
       return fetch(pfad, {
         method: 'POST', headers: { 'Content-Type': 'application/json', 'X-WFW': '1' }, body: JSON.stringify(body || {})
-      }).then(function (r) { return r.json().then(function (j) { if (!r.ok) throw new Error(j.fehler || ('Fehler ' + r.status)); return j; }); });
+      }).then(antwortLesen);
     }
   };
 
@@ -79,19 +85,33 @@
     return kopie;
   }
   var speicherTimer = null;
+  function profilQuery() { return S.modus === 'familie' && S.nutzer ? '?profil=' + encodeURIComponent(S.nutzer.slug) : ''; }
+  function speicherSchluessel() { return 'wfw_zustand' + (S.modus === 'familie' && S.nutzer ? '_' + S.nutzer.slug : ''); }
   function speichern() {
     if (!S.geladen) return;
     clearTimeout(speicherTimer);
     zeigeSpeicher('Speichert ...');
-    speicherTimer = setTimeout(function () {
-      var daten = sauber();
-      try { localStorage.setItem('wfw_zustand', JSON.stringify(daten)); } catch (e) { /* ohne Zwischenspeicher weiter */ }
-      API.post('/api/zustand', daten).then(function () {
-        S.speicherStand = new Date(); S.speicherFehler = false; zeigeSpeicher();
-      }).catch(function (f) {
-        S.speicherFehler = true; zeigeSpeicher(); toast('Speichern fehlgeschlagen: ' + f.message, true);
-      });
-    }, 350);
+    speicherTimer = setTimeout(sendeZustand, 350);
+  }
+  function sendeZustand() {
+    if (S.inFlug) { S.nochmal = true; return; }
+    S.inFlug = true;
+    var daten = sauber();
+    try { localStorage.setItem(speicherSchluessel(), JSON.stringify(daten)); } catch (e) { /* ohne Zwischenspeicher weiter */ }
+    API.post('/api/zustand' + profilQuery(), daten).then(function (r) {
+      S.z.rev = r.rev;
+      S.speicherStand = new Date(); S.speicherFehler = false; zeigeSpeicher();
+    }).catch(function (f) {
+      if (f.status === 409) { S.nochmal = false; konfliktBehandeln(); return; }
+      S.speicherFehler = true; zeigeSpeicher(); toast('Speichern fehlgeschlagen: ' + f.message, true);
+    }).then(function () {
+      S.inFlug = false;
+      if (S.nochmal) { S.nochmal = false; sendeZustand(); }
+    });
+  }
+  function konfliktBehandeln() {
+    toast('Dieser Stand wurde inzwischen auf einem anderen Gerät oder in einem anderen Fenster geändert. Ich lade den neuen Stand.', true);
+    API.get('/api/zustand' + profilQuery()).then(function (z) { zustandSetzen(z); render(); zeigeSpeicher(); });
   }
   function zeigeSpeicher(text) {
     var el = $('#speicher');
@@ -253,6 +273,9 @@
   /* ---------------------------------------------------------------- Kopf */
   function renderKopf() {
     var h = '';
+    var chip = $('#profilchip');
+    if (chip) chip.innerHTML = S.modus === 'familie' && S.nutzer ? '<button class="knopf klein" data-a="profilwechseln" title="Profil wechseln">' + esc(S.nutzer.name) + ' (wechseln)</button>' : '';
+    if (S.modus === 'familie' && !S.nutzer) { $('#tabs').innerHTML = ''; return; }
     TABS.forEach(function (t) {
       h += '<button class="tab" role="tab" data-a="tab" data-tab="' + t[0] + '" aria-selected="' + (S.ui.tab === t[0]) + '">' + t[1] + '</button>';
     });
@@ -906,7 +929,11 @@
     var meta = S.db.meta;
     var h = '<div class="kopfzeile"><h1>Daten und Import</h1></div>';
     h += '<div class="raster zwei">';
-    h += '<div class="karte"><h2>Sicherung</h2><p>Dein Fortschritt liegt in <code>daten/zustand.json</code>. Das Programm legt automatisch Sicherungen in <code>daten/sicherungen/</code> an (alle 15 Minuten bei Änderungen, die letzten 40).</p>' +
+    var sicherungsText = S.modus === 'familie'
+      ? '<p>Dein Fortschritt liegt auf dem Server im Profil <b>' + esc(S.nutzer ? S.nutzer.name : '') + '</b>. Der Server legt automatisch Sicherungen an (alle 15 Minuten bei Änderungen, die letzten 40). ' +
+        'Eine Datei zum Mitnehmen kannst du hier trotzdem speichern, zum Beispiel um deinen Stand vom PC in dein Profil zu holen.</p>'
+      : '<p>Dein Fortschritt liegt in <code>daten/zustand.json</code>. Das Programm legt automatisch Sicherungen in <code>daten/sicherungen/</code> an (alle 15 Minuten bei Änderungen, die letzten 40).</p>';
+    h += '<div class="karte"><h2>Sicherung</h2>' + sicherungsText +
       '<p><button class="knopf" data-a="export">Fortschritt als Datei speichern</button> ' +
       '<label class="knopf" style="display:inline-block">Fortschritt laden<input type="file" id="importdatei" accept="application/json,.json" hidden></label> ' +
       '<button class="knopf gefahr" data-a="zuruecksetzen">Alles zurücksetzen</button></p></div>';
@@ -915,7 +942,9 @@
       (meta.rezepteVollstaendig ? '' : '<br><span class="gesperrt">Die Unter-Rezepte der Bauteile fehlen (PublicExport war nicht erreichbar).</span>') + '</p>' +
       '<p class="muted klein">Neue Warframes und Waffen erscheinen nach dem Aktualisieren. Dein Fortschritt bleibt erhalten. ' +
       'Ins Internet geht das Programm nur dafür (Itemlisten von GitHub und Rezepte vom offiziellen Warframe-PublicExport) und zum einmaligen Laden der Item-Bilder. Auf dein Warframe-Konto greift es nie zu.</p>' +
-      '<p><button class="knopf" data-a="dbupdate" id="dbknopf">Datenbank jetzt aktualisieren</button></p><div id="dbstatus"></div></div>';
+      (S.modus !== 'familie' || S.admin
+        ? '<p><button class="knopf" data-a="dbupdate" id="dbknopf">Datenbank jetzt aktualisieren</button></p><div id="dbstatus"></div>'
+        : '<p class="muted klein">Der Server aktualisiert die Datenbank automatisch jede Woche.</p>') + '</div>';
     h += '</div>';
 
     h += '<div class="karte" style="margin-top:16px"><details id="fortgeschritten"><summary><b>Für Fortgeschrittene: Profil oder Inventar als Text einfügen</b></summary>' +
@@ -980,6 +1009,56 @@
     return a;
   }
 
+  /* ---------------------------------------------------------------- Profilwahl (Familienmodus) */
+  function renderProfilWahl() {
+    $('#ansicht').innerHTML = '<p class="leer">Lade Profile ...</p>';
+    API.get('/api/profile').then(function (r) {
+      if (S.nutzer) return;   // inzwischen ist ein Profil geladen, die Wahl wird nicht mehr gebraucht
+      var h = '<div class="kopfzeile"><h1>Wer bist du?</h1></div>' +
+        '<p class="muted">Jeder hat sein eigenes Profil. Dein Fortschritt liegt auf dem Server und geht nicht verloren, wenn du das Handy wechselst oder den Browser leerst.</p>';
+      if (r.profile.length) {
+        h += '<div class="profilwahl">';
+        r.profile.forEach(function (pr) {
+          h += '<div class="profilkarte"><button type="button" class="profilknopf" data-a="profilwaehlen" data-slug="' + esc(pr.slug) + '" data-name="' + esc(pr.name) + '">' +
+            '<b>' + esc(pr.name) + '</b><span class="muted klein">' + (pr.mr ? 'MR ' + pr.mr + ' · ' : '') + pr.gebaut + ' gebaut, ' + pr.rang30 + ' auf Rang 30 · zuletzt ' + esc(pr.geaendert) + '</span></button>' +
+            '<button type="button" class="knopf klein gefahr" data-a="profilloeschen" data-slug="' + esc(pr.slug) + '" data-name="' + esc(pr.name) + '">Löschen</button></div>';
+        });
+        h += '</div>';
+      } else {
+        h += '<div class="hinweis"><p>Es gibt noch kein Profil. Lege unten dein erstes an.</p></div>';
+      }
+      h += '<div class="karte" style="margin-top:16px;max-width:520px"><h2>Neues Profil</h2>' +
+        '<label class="feld">Dein Name<input type="text" id="profilname" maxlength="24" autocomplete="off" placeholder="z. B. Papa"></label>' +
+        '<p style="margin:12px 0 0"><button type="button" class="knopf primaer" data-a="profilneu">Profil anlegen</button></p></div>' +
+        '<div class="hinweis" style="margin-top:16px;max-width:520px"><p><b>Tipp fürs Handy:</b> Öffne das Browser-Menü und wähle "Zum Startbildschirm hinzufügen". Dann hast du WarframeWilli wie eine App.</p>' +
+        '<p>Es gibt keine Passwörter. Wähle nur dein eigenes Profil, sonst änderst du den Fortschritt eines anderen.</p></div>';
+      $('#ansicht').innerHTML = h;
+    }).catch(function (f) {
+      if (S.nutzer) return;
+      $('#ansicht').innerHTML = '<div class="karte hinweis fehler"><h2>Profile nicht erreichbar</h2><p>' + esc(f.message) + '</p></div>';
+    });
+  }
+  function profilNeu() {
+    var feld = $('#profilname');
+    var name = feld ? feld.value : '';
+    API.post('/api/profile', { name: name }).then(function (r) {
+      S.ui.tab = 'uebersicht';
+      return profilLaden(r.slug, r.name);
+    }).catch(function (f) { toast(f.message, true); });
+  }
+  function profilWechseln() {
+    S.nutzer = null; S.geladen = false; S.speicherStand = null;
+    try { localStorage.removeItem('wfw_profil'); } catch (e) { /* egal */ }
+    schliesseDetail();
+    render();
+    zeigeSpeicher();
+  }
+  function profilLoeschen(slug, name) {
+    if (!window.confirm('Das Profil "' + name + '" wirklich löschen? Der Fortschritt ist dann weg (eine Sicherungskopie bleibt auf dem Server).')) return;
+    API.post('/api/profile/loeschen', { slug: slug }).then(function () { toast('Profil gelöscht.'); renderProfilWahl(); })
+      .catch(function (f) { toast(f.message, true); });
+  }
+
   /* ---------------------------------------------------------------- Hilfe */
   function renderHilfe() {
     var h = '<div class="kopfzeile"><h1>Hilfe</h1></div><div class="raster zwei">';
@@ -1016,6 +1095,7 @@
   /* ---------------------------------------------------------------- Rendern */
   function render() {
     renderKopf();
+    if (S.modus === 'familie' && !S.nutzer) { renderProfilWahl(); return; }
     var t = S.ui.tab;
     if (t === 'uebersicht') renderUebersicht();
     else if (t === 'schmiede') renderSchmiede();
@@ -1052,6 +1132,10 @@
         S.ui.kat = 'alle';
         wechsleTab('schmiede');
         break;
+      case 'profilwaehlen': profilLaden(el.getAttribute('data-slug'), el.getAttribute('data-name')); break;
+      case 'profilneu': profilNeu(); break;
+      case 'profilwechseln': profilWechseln(); break;
+      case 'profilloeschen': profilLoeschen(el.getAttribute('data-slug'), el.getAttribute('data-name')); break;
       case 'farmteil': {
         var fe = ez(id);
         fe.t = fe.t || {};
@@ -1235,7 +1319,10 @@
         var z = JSON.parse(rd.result);
         if (!z || typeof z !== 'object' || typeof z.items !== 'object') throw new Error('Das ist keine WarframeWilli-Sicherung.');
         if (!window.confirm('Den aktuellen Fortschritt durch die Datei ersetzen? (Die alte Fassung bleibt in den automatischen Sicherungen.)')) return;
+        var rev = S.z.rev, profilInfo = S.z.profil;
         S.z = Object.assign(leererZustand(), z);
+        S.z.rev = rev;
+        if (profilInfo) S.z.profil = profilInfo; else delete S.z.profil;
         S.z.einst = S.z.einst || {};
         speichern();
         uiAusZustand();
@@ -1249,6 +1336,8 @@
     if (!window.confirm('Wirklich den gesamten Fortschritt löschen? Eine Sicherung wird automatisch angelegt.')) return;
     var bisher = S.z;
     S.z = leererZustand();
+    S.z.rev = bisher.rev;
+    if (bisher.profil) S.z.profil = bisher.profil;
     S.z.einst.ui = bisher.einst.ui;
     speichern();
     render();
@@ -1282,24 +1371,51 @@
       S.katReihe = Object.keys(kats).map(function (k) { return { key: k, name: kats[k].name, pos: kats[k].pos }; }).sort(function (a, b) { return a.pos - b.pos; });
     });
   }
-  function start() {
-    try { var th = localStorage.getItem('wfw_theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) { /* egal */ }
-    Promise.all([datenLaden(), API.get('/api/zustand').catch(function () { return null; })]).then(function (erg) {
-      var z = erg[1];
-      if (!z) {
-        try { z = JSON.parse(localStorage.getItem('wfw_zustand') || 'null'); } catch (e) { z = null; }
-        if (z) toast('Server nicht erreichbar, es wird der Zwischenspeicher des Browsers genutzt.', true);
-      }
-      S.z = Object.assign(leererZustand(), z || {});
-      S.z.spieler = Object.assign({ name: '', mr: 0, mrXp: null }, S.z.spieler || {});
-      S.z.items = S.z.items || {};
-      S.z.einst = S.z.einst || {};
-      uiAusZustand();
-      S.geladen = true;
-      return API.get('/api/profil').then(function (p) { S.profil = p; }).catch(function () { S.profil = null; });
-    }).then(function () {
+  function zustandSetzen(z) {
+    S.z = Object.assign(leererZustand(), z || {});
+    S.z.spieler = Object.assign({ name: '', mr: 0, mrXp: null }, S.z.spieler || {});
+    S.z.items = S.z.items || {};
+    S.z.einst = S.z.einst || {};
+    uiAusZustand();
+    S.geladen = true;
+  }
+  function profilLaden(slug, name) {
+    S.nutzer = { slug: slug, name: name };
+    return API.get('/api/zustand?profil=' + encodeURIComponent(slug)).then(function (z) {
+      try { localStorage.setItem('wfw_profil', JSON.stringify({ slug: slug, name: name })); } catch (e) { /* egal */ }
+      zustandSetzen(z);
+      if (z.profil && z.profil.name) S.nutzer.name = z.profil.name;
+      S.profil = null;
       render();
       zeigeSpeicher();
+    }).catch(function (f) {
+      S.nutzer = null; S.geladen = false;
+      try { localStorage.removeItem('wfw_profil'); } catch (e) { /* egal */ }
+      toast(f.message, true);
+      render();
+    });
+  }
+  function start() {
+    try { var th = localStorage.getItem('wfw_theme'); if (th) document.documentElement.setAttribute('data-theme', th); } catch (e) { /* egal */ }
+    Promise.all([datenLaden(), API.get('/api/info')]).then(function (erg) {
+      var info = erg[1];
+      S.modus = info.modus || 'lokal';
+      S.admin = !!info.admin;
+      if (S.modus === 'familie') {
+        var gemerkt = null;
+        try { gemerkt = JSON.parse(localStorage.getItem('wfw_profil') || 'null'); } catch (e) { gemerkt = null; }
+        if (gemerkt && gemerkt.slug) return profilLaden(gemerkt.slug, gemerkt.name);
+        render();   // zeigt die Profilwahl
+        return null;
+      }
+      return API.get('/api/zustand').catch(function () { return null; }).then(function (z) {
+        if (!z) {
+          try { z = JSON.parse(localStorage.getItem('wfw_zustand') || 'null'); } catch (e) { z = null; }
+          if (z) toast('Server nicht erreichbar, es wird der Zwischenspeicher des Browsers genutzt.', true);
+        }
+        zustandSetzen(z);
+        return API.get('/api/profil').then(function (p) { S.profil = p; }).catch(function () { S.profil = null; });
+      }).then(function () { render(); zeigeSpeicher(); });
     }).catch(function (f) {
       $('#ansicht').innerHTML = '<div class="karte hinweis fehler"><h2>Start nicht möglich</h2><p>' + esc(f.message) + '</p>' +
         '<p>Falls noch keine Datenbank vorhanden ist, in einem Terminal <code>python3 wf_daten.py</code> ausführen.</p></div>';

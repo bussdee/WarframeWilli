@@ -11,3 +11,9 @@ WarframeWilli.desktop
 __pycache__/
 *.pyc
 .claude/
+/data/
+/backup/
+/.local/
+.env
+.env.*
+!.env.example

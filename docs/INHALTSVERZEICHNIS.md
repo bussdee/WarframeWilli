@@ -4,16 +4,28 @@ Neu erzeugen mit `python3 docs/inhaltsverzeichnis.py`.
 
 ## `server.py`
 
-_WarframeWilli: lokaler Server (nur Python-Standardbibliothek)._
+_WarframeWilli: Server (nur Python-Standardbibliothek)._
+* Klasse `Konflikt`
 * `lese_json()`
 * `schreibe_json_atomar()`
 * `teile_sammeln()`
 * `datenbank_laden()`
+* `datenbank_pruefen()`: Laedt die Datenbank neu, wenn sie von aussen (z. B. per Wochen-Timer) ersetzt wurde.
+* `host_erlaubt()`: Prueft den Host-Kopf (Schutz gegen DNS-Rebinding). Im LAN-Modus sind private Adressen und lokale Namen erlaubt.
+* `profil_name_pruefen()`
+* `profil_slug()`
+* `zustand_pfad()`
+* `sicherungs_ordner()`
 * `zustand_sichern()`: Legt vor dem Ueberschreiben eine Sicherung an (hoechstens alle 15 Minuten, 40 Stueck).
 * `zustand_pruefen()`
+* `zustand_speichern()`: Speichert atomar. Wirft Konflikt, wenn ein anderes Geraet inzwischen gespeichert hat. Gibt die neue Revision zurueck.
+* `profile_liste()`
+* `profil_anlegen()`
+* `profil_loeschen()`
 * `aktualisierung_starten()`
+* `auto_aktualisierung_starten()`: Optional: prueft regelmaessig, ob die Datenbank aelter als `tage` Tage ist, und baut sie dann im Hintergrund neu.
 * `verkleinern()`: Haelt den Zwischenspeicher klein, falls Pillow vorhanden ist. Ohne Pillow bleibt das Original.
-* `bild_holen()`: Liefert (bytes, mime) aus dem Zwischenspeicher oder vom Wiki. None, wenn nicht verfuegbar.
+* `bild_holen()`: Liefert (bytes, mime) aus dem Zwischenspeicher oder aus dem Netz. None, wenn nicht verfuegbar.
 * Klasse `Handler`
   * `do_HEAD`
   * `do_GET`
@@ -21,6 +33,7 @@ _WarframeWilli: lokaler Server (nur Python-Standardbibliothek)._
   * `do_POST`
 * `port_frei()`
 * `laeuft_schon()`
+* `eigene_adressen()`: Adressen, unter denen andere Geraete im Heimnetz den Server erreichen (Hinweis fuer die Anzeige).
 * `main()`
 
 ## `wf_daten.py`
@@ -54,7 +67,10 @@ _WarframeWilli: Oberflaeche. Zustand liegt auf dem lokalen Server (daten/zustand
 * `leererZustand()`
 * `ez()`
 * `sauber()`
+* `profilQuery()`
+* `speicherSchluessel()`
 * `speichern()`
+* `sendeZustand()`
 * `setStatus()`
 * `toggle()`
 * `mrBekannt()`
@@ -88,7 +104,10 @@ _WarframeWilli: Oberflaeche. Zustand liegt auf dem lokalen Server (daten/zustand
 * `importErgebnisHtml()`
 * `profilAnwenden()`
 * `zug()`
-* `renderHilfe()`: ---------------------------------------------------------------- Hilfe
+* `renderProfilWahl()`: ---------------------------------------------------------------- Profilwahl (Familienmodus)
+* `profilNeu()`
+* `profilWechseln()`
+* `renderHilfe()`
 * `render()`: ---------------------------------------------------------------- Rendern
 * `wechsleTab()`
 * `uiMerken()`
@@ -103,6 +122,8 @@ _WarframeWilli: Oberflaeche. Zustand liegt auf dem lokalen Server (daten/zustand
 * `themeWechseln()`
 * `uiAusZustand()`: egal */ } } /* ---------------------------------------------------------------- Start
 * `datenLaden()`
+* `zustandSetzen()`
+* `profilLaden()`
 * `start()`
 
 ## `web/rechnen.js`
@@ -126,5 +147,6 @@ _WarframeWilli: reine Rechenfunktionen ohne Oberflaeche (auch unter Node testbar
 * `mrPlan()`: Plan fuer den naechsten Mastery Rank.
 
 * `tests/alle.sh`
+* `tests/rauchtest.py`
 * `tests/test_alles.py`
 * `tests/test_rechnen.js`

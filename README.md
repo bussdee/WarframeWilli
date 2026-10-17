@@ -44,6 +44,13 @@ Optional als Starter im Anwendungsmenü (Linux):
 sed "s|@PFAD@|$PWD|g" WarframeWilli.desktop.vorlage > ~/.local/share/applications/WarframeWilli.desktop
 ```
 
+## Für die ganze Familie auf einem Raspberry Pi
+
+Mit `python3 server.py --lan` (oder als Docker-Container auf einem Raspberry Pi, siehe [`docs/PI.md`](docs/PI.md)) läuft der Server im Heimnetz.
+Jeder in der Familie öffnet ihn im Handy-Browser, wählt oder legt sein **Profil** an und hat seinen eigenen Fortschritt, der auf dem Server liegt.
+Ein Symbol für den Startbildschirm ist dabei. Es gibt keine Anmeldung, der Familienmodus ist nur für ein vertrauenswürdiges Heimnetz gedacht
+und der Port darf nie ins Internet freigegeben werden.
+
 ## Bedienung in drei Schritten
 
 1. Trage auf der Übersicht deinen Mastery Rank ein.
