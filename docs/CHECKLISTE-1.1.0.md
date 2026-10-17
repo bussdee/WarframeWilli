@@ -51,4 +51,4 @@ Ablauf nach den Pi-Regeln. Ein roter Punkt ist ein Stoppsignal: nicht herumprobi
 - [x] `.local/DEPLOY-warframewilli-1.1.0.md` ist geschrieben (Datum, Version, Sicherung, Plan, Ergebnis von `nach`, Auffälligkeiten).
 - [x] Port-Tabelle der Pi-Anleitung ist ergänzt (nach Ok des Projektinhabers).
 - [x] Push auf GitHub am 17.10.2026 auf ausdrückliche Ansage, nachdem die Version nachweislich auf dem Pi lief.
-- [ ] Tag und Release: nur auf eine neue Ansage.
+- [x] Tag `v1.1.0` und GitHub-Release am 17.10.2026 auf ausdrückliche Ansage, nachdem die Version nachweislich auf dem Pi lief.

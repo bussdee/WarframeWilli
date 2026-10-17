@@ -1,13 +1,13 @@
 # Übergabe Version 1.1.0 (Familienmodus, Docker für den Raspberry Pi)
 
 **Freigabestatus: freigegeben und auf dem Pi deployt (17.10.2026).** Der Projektinhaber hat den Plan bestätigt und `make deploy` mit den zwei Rückfragen selbst ausgeführt, die Nachprüfung am Pi ist grün
-(Abschnitt unten). Auf GitHub ist 1.1.0 veröffentlicht (Push auf `main` am 17.10.2026, auf ausdrückliche Ansage des Projektinhabers, **ohne Tag und ohne Release**). Ein Tag oder Release kommt nur auf eine neue Ansage.
+(Abschnitt unten). Auf GitHub ist 1.1.0 veröffentlicht: Push auf `main` und danach Tag `v1.1.0` samt GitHub-Release, beides am 17.10.2026 auf ausdrückliche Ansage des Projektinhabers. Die Version lief zu dem Zeitpunkt nachweislich auf dem Pi.
 
 ## Stand
 
 * Version `1.1.0`, steht in `server.py` (`VERSION`, wird von `/api/info` gemeldet) und in der Datei `VERSION` (der Pi-Ordner enthält sie, `cat ~/warframewilli/VERSION`).
   Ein Test hält beide Stellen und die Doku zusammen.
-* Auf GitHub gepusht (ein gebündelter Commit, ohne Tag und Release). Auf dem Pi läuft Version 1.1.0 als Container `warframewilli-app` in `~/warframewilli` auf Port 8100, nur an die LAN-Adresse gebunden.
+* Auf GitHub gepusht und als Release `v1.1.0` veröffentlicht. Der Änderungsverlauf steht in `CHANGELOG.md`. Auf dem Pi läuft Version 1.1.0 als Container `warframewilli-app` in `~/warframewilli` auf Port 8100, nur an die LAN-Adresse gebunden.
 * Eine frühere Fassung dieses Standes baute einen systemd-Installer mit `sudo`, Port 8765 und Binden auf alle Adressen. Das verstößt gegen die Pi-Regeln
   und wurde **vollständig entfernt**, bevor irgendetwas auf den Pi ging. Der Pi bekommt nur den Docker-Weg.
 
@@ -71,5 +71,5 @@ Abhilfe wäre ein Kernel-Parameter und ein Neustart des Pi, das ist eine Entsche
 
 * Zugriff von echten Handys über WLAN, "Zum Startbildschirm hinzufügen" auf iPhone und Android (macht der Projektinhaber).
 * Neustart-Probe des Containers auf dem Pi (ein Eingriff, nur auf Ansage).
-* Tag und Release für 1.1.0: nur auf Ansage des Projektinhabers (der Push ist erfolgt).
+* Folgefassungen: Tag und Release nur auf Ansage, erst wenn die Fassung auf dem Pi nachweislich läuft.
 * Optional, nächste Fassung: `pi/pi-start.sh` könnte eine Warnung ausgeben, wenn `docker info` "No memory limit support" meldet.

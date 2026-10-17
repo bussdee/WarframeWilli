@@ -3,7 +3,7 @@
 Stand: 17.10.2026, Version 1.1.0 (inoffizielles Fan-Werkzeug, nicht mit Digital Extremes verbunden)
 
 **Betriebsstand:** Version 1.1.0 läuft seit dem 17.10.2026 im Familienmodus als Docker-Container auf dem Raspberry Pi des Projektinhabers (Port 8100, nur Heimnetz). Auf GitHub ist 1.1.0
-veröffentlicht (Push am 17.10.2026, ohne Tag und Release, beides nur auf Ansage). Einzelheiten und Offenes: `docs/UEBERGABE-1.1.0.md`.
+veröffentlicht (Release `v1.1.0` am 17.10.2026, Verlauf in `CHANGELOG.md`). Tag und Release gibt es nur auf Ansage und erst, wenn die Fassung auf dem Pi läuft. Einzelheiten und Offenes: `docs/UEBERGABE-1.1.0.md`.
 
 ## Zweck
 

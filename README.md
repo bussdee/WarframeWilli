@@ -80,6 +80,10 @@ Benötigt Node.js für die Rechen-Tests. Fehlt `daten/items.json`, baut das Skri
 Einstieg für Entwickler ist [`docs/START-HIER.md`](docs/START-HIER.md), Erkenntnisse und Entscheidungen stehen in
 [`docs/ERKENNTNISSE.md`](docs/ERKENNTNISSE.md), eine erzeugte Übersicht im [`docs/INHALTSVERZEICHNIS.md`](docs/INHALTSVERZEICHNIS.md).
 
+## Änderungsverlauf
+
+Siehe [`CHANGELOG.md`](CHANGELOG.md). Fassungen stehen als Release auf GitHub.
+
 ## Lizenz
 
 MIT, siehe [`LICENSE`](LICENSE). Das gilt für den Code, nicht für Warframe-Spieldaten.
